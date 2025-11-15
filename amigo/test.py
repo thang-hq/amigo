@@ -1,21 +1,10 @@
-#!/usr/bin/env python3
-#
-# File: asymptotic_theory.py
-# Author: Timothy Van Reeth <timothy.vanreeth@kuleuven.be>
-# License: GPL-3+
-# Description: a python class with subroutines to calculate asymptotic g-mode
-#              period-spacing patterns. This can be done in the framework of the
-#              traditional approximation of rotation, assuming:
-#                  (1) uniform rotation and spherical symmetry
-#                  (2) radially differential rotation and spherical symmetry
-#                  (3) uniform rotation and weak centrifugal acceleration
-
 import numpy as np
 import astropy.units as u
 import sys
 
 from itertools import product
 from multiprocessing import Pool
+from scipy.interpolate import LinearNDInterpolator
 
 from centrifugal_TAR import hough
 
@@ -153,80 +142,49 @@ class gravity_modes(object):
                              patterns for a differentially rotating star, using 
                              Taylor expansion.
         """
+
+        #============= Manifest parameters by THANG ============ 
+        # n = len(lam)
+        # lam_val = 2.000079954418717
+        # lam = np.full(n, lam_val)
+
+        # Retrieve data from Zenodo respository 
+        data = np.genfromtxt('eigens/l1_m-1.txt', skip_header=1)
         
-        if((self.kval >= 0) & (self.mval != 0)):
-            
-            if(spinmin is None):
-                spinmin = -0.1
-            
-            # Relatively "ad hoc" optimal sampling (based on "experience")
-            nspinmin = round(spindensity * 20000. * (np.log10(1.+abs(spinmin))
-                                                         / np.log10(101.))**0.5)
-            nspinmax = round(spindensity * 20000. * (np.log10(1.+abs(spinmax))
-                                                         / np.log10(101.))**0.5)
-            
-            if((spinmin < 0.) & (spinmax <= 0.)):
-                spin = -10.**(np.linspace(np.log10(1.+abs(spinmin))**0.5,
-                   np.log10(1.+abs(spinmax))**0.5,int(nspinmin-nspinmax))**2.) \
-                                                                            + 1.
-            elif((spinmin >= 0.) & (spinmax > 0.)):
-                spin = 10.**(np.linspace(np.log10(1.+spinmin)**0.5, 
-                        np.log10(1.+spinmax)**0.5,int(nspinmax-nspinmin))**2.) \
-                                                                            - 1.
-            else:
-                spinneg = -10.**(np.linspace(np.log10(1.+abs(spinmin))**0.5,0.,
-                                                        int(nspinmin))**2.) + 1.
-                spinpos = 10.**(np.linspace(0.,np.log10(1.+spinmax)**0.5,
-                                                        int(nspinmax))**2.) - 1.
-                spin = np.unique(np.hstack((spinneg,spinpos)))
+        a_vals        = data[:, 0]    # parameter a 
+        spin_vals     = data[:, 1]    # q
+        lam_vals      = data[:, 3]    # lambda
+
+        # Create interpolation function
+        points = np.column_stack((a_vals, spin_vals))
+        lambda_interp = LinearNDInterpolator(points, lam_vals)
+
+        # Now you can use this interpolator to get lambda for ANY a and q
+        # For example, create a dense grid of a and q values for sampling
+        a_min, a_max = a_values.min(), a_values.max()
+        spin_min, spin_max = spin_vals.min(), spin_vals.max()
         
+        # Create dense sampling grid
+        a_dense = np.linspace(a_min, a_max, 100)
+        spin_dense = np.linspace(spin_min, spin_max, 100)
         
-        elif((self.kval >= 0) & (self.mval == 0)):
-            
-            if(spinmin is None):
-                spinmin = -spinmax
-                
-            # Relatively "ad hoc" optimal sampling (based on "experience")
-            nspinmin = round(spindensity * 20000. * (np.log10(1.+abs(spinmin))
-                                                         / np.log10(101.))**0.5)
-            nspinmax = round(spindensity * 20000. * (np.log10(1.+abs(spinmax))
-                                                         / np.log10(101.))**0.5)
-            
-            if((spinmin < 0.) & (spinmax <= 0.)):
-                spin = -10.**(np.linspace(np.log10(1.+abs(spinmin))**0.5,
-                   np.log10(1.+abs(spinmax))**0.5,int(nspinmin-nspinmax))**2.) \
-                                                                            + 1.
-            elif((spinmin >= 0.) & (spinmax > 0.)):
-                spin = 10.**(np.linspace(np.log10(1.+spinmin)**0.5,
-                        np.log10(1.+spinmax)**0.5,int(nspinmax-nspinmin))**2.) \
-                                                                            - 1.
-            else:
-                spinneg = -10.**(np.linspace(np.log10(1.+abs(spinmin))**0.5,0.,
-                                                        int(nspinmin))**2.) + 1.
-                spinpos = 10.**(np.linspace(0.,np.log10(1.+spinmax)**0.5,
-                                                        int(nspinmax))**2.) - 1.
-                spin = np.unique(np.hstack((spinneg,spinpos)))
+        # Create meshgrid for interpolation
+        a_grid, spin_grid = np.meshgrid(a_dense, spin_dense, indexing='ij')
+        interp_points = np.column_stack((a_grid.ravel(), spin_grid.ravel()))
         
-        
-        else:
-            if(spinmin is None):
-                spinmin = float((abs(self.mval) + abs(self.kval)) *
-                         (abs(self.mval) + abs(self.kval) - 1)) / abs(self.mval)
-            
-            # Relatively "ad hoc" optimal sampling (based on "experience")
-            nspinmax = round(spindensity * 20000. * (np.log10(1.+abs(spinmax))
-                                                         / np.log10(101.))**0.5)
-            
-            spinpos = 10.**(np.linspace(np.log10(1.)**0.5,
-                                        np.log10(1.+spinmax)**0.5,
-                                        int(nspinmax))[1:]**2.) - 1. + spinmin
-            spinneg = np.linspace(0.,spinmin,100)
-            spin = np.unique(np.hstack((spinneg,spinpos)))
-            
-        
+        # Interpolate lambda values on the dense grid
+        lam_grid = lambda_interp(interp_points).reshape(a_grid.shape)
+
         # Obtaining the eigenvalues lambda
-        lam = self.lam_fun(spin)
-        
+        spin = spin_grid.ravel()
+        a = a_grid.ravel() 
+        lam = lam_grid.ravel()
+    
+
+        #===================================================
+
+        ### Below is kept as in Amigo original code ###
+
         # Limiting ourselves to the part of the arrays that exists...
         lam_exists = np.isfinite(lam) & np.r_[lam != 0.]
         spin = spin[lam_exists]
@@ -248,7 +206,7 @@ class gravity_modes(object):
         fun2 = 0.25 * spin**2. * ( ( ( (2.*d2lamdnu2/lam) - (dlamdnu/lam)**2. )\
                           * (1.+(self.mval*spin/2.))**2.) \
                        + (3.*self.mval*dlamdnu*(1. + (self.mval*spin/2.))/lam) \
-                       + (2.*self.mval**2.) )
+                       + (2.*self.mval**2.) ) 
 
         return spin, lam, spinsqlam, fun1, fun2
 

@@ -35,7 +35,8 @@ import astropy.units as u
 
 
 import fit
-from asymptotic_theory import gravity_modes
+# from asymptotic_theory import gravity_modes
+from test import gravity_modes
 from observations import pulsations as obspuls
 
 
@@ -557,7 +558,15 @@ if __name__ == "__main__":
         
         # preparing the asymptotic g-mode models
         modes = [gravity_modes(gyre_dir,kval=k, mval=m) for k,m in zip(kvals,mvals)]
-        
+
+        ###########################
+        # Print all lam values as a list
+        for i, mode in enumerate(modes):
+            if hasattr(mode, 'lam') and mode.lam is not None:
+                print(f"\nMode {i+1} lam values as list:")
+                print(f"lam = {mode.lam.tolist()}")
+        ###########################
+
         # Calculating the asymptotic fits and plotting the results
         if(method == 'grid'):
             fin_frot, fin_e_frot, fin_Pi0, fin_e_Pi0, alpha_out, e_alpha, \
@@ -599,7 +608,7 @@ if __name__ == "__main__":
                                    nthreads=nthreads)
             
             plot_results(obsstar, modes, fin_frot, fin_Pi0, nvals, alpha_out, 
-                         method=method, diagnostic=diagnostic, 
+                         method=method, diagnostic=diagnostic,  
                          output_dir=output_dir)
     
         # Printing the final results
