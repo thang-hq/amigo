@@ -149,7 +149,8 @@ class gravity_modes(object):
         # lam = np.full(n, lam_val)
 
         # Retrieve data from Zenodo respository 
-        data = np.genfromtxt('eigens/l1_m-1.txt', skip_header=1)
+        path = '/home/helloluyah/Documents/Master_Thesis/amigo/amigo/eigens/'
+        data = np.genfromtxt(path+'l1_m-1.txt', skip_header=1)
         
         a_vals        = data[:, 0]    # parameter a 
         spin_vals     = data[:, 1]    # q
@@ -161,7 +162,7 @@ class gravity_modes(object):
 
         # Now you can use this interpolator to get lambda for ANY a and q
         # For example, create a dense grid of a and q values for sampling
-        a_min, a_max = a_values.min(), a_values.max()
+        a_min, a_max = a_vals.min(), a_vals.max()
         spin_min, spin_max = spin_vals.min(), spin_vals.max()
         
         # Create dense sampling grid
